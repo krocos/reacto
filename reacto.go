@@ -1,0 +1,83 @@
+package reacto
+
+import (
+	"sync"
+	"unsafe"
+)
+
+type effect func()
+
+var activeEffect effect
+
+type ValueRef[T any] struct {
+	effects *effects
+	value   T
+}
+
+func Ref[T any](value T) *ValueRef[T] {
+	return &ValueRef[T]{
+		effects: newEffects(),
+		value:   value,
+	}
+}
+
+func (r *ValueRef[T]) Value() T {
+	r.effects.add(activeEffect)
+	return r.value
+}
+
+func (r *ValueRef[T]) Set(value T) {
+	r.value = value
+	r.effects.notify()
+}
+
+var mu sync.Mutex
+
+func Watch(e effect) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	activeEffect = e
+	activeEffect()
+	activeEffect = nil
+}
+
+type ComputedRef[T any] struct {
+	effects *effects
+	compute func() T
+}
+
+func Computed[T any](compute func() T) *ComputedRef[T] {
+	return &ComputedRef[T]{
+		effects: newEffects(),
+		compute: compute,
+	}
+}
+
+func (c *ComputedRef[T]) Value() T {
+	c.effects.add(activeEffect)
+	return c.compute()
+}
+
+type effects struct {
+	subscribers map[uintptr]effect
+}
+
+func newEffects() *effects {
+	return &effects{subscribers: make(map[uintptr]effect)}
+}
+
+func (e *effects) add(ef effect) {
+	if ef == nil {
+		return
+	}
+
+	key := uintptr(unsafe.Pointer(&ef))
+	e.subscribers[key] = activeEffect
+}
+
+func (e *effects) notify() {
+	for _, ef := range e.subscribers {
+		ef()
+	}
+}
