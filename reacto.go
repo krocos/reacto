@@ -31,11 +31,11 @@ func (r *ValueRef[T]) Set(value T) {
 	r.effects.notify()
 }
 
-var mu sync.Mutex
+var watchMu sync.Mutex
 
 func Watch(e effect) {
-	mu.Lock()
-	defer mu.Unlock()
+	watchMu.Lock()
+	defer watchMu.Unlock()
 
 	activeEffect = e
 	activeEffect()
@@ -60,11 +60,11 @@ func (c *ComputedRef[T]) Value() T {
 }
 
 type effects struct {
-	subscribers map[uintptr]effect
+	subscribers sync.Map
 }
 
 func newEffects() *effects {
-	return &effects{subscribers: make(map[uintptr]effect)}
+	return &effects{subscribers: sync.Map{}}
 }
 
 func (e *effects) add(ef effect) {
@@ -73,11 +73,12 @@ func (e *effects) add(ef effect) {
 	}
 
 	key := uintptr(unsafe.Pointer(&ef))
-	e.subscribers[key] = activeEffect
+	e.subscribers.Store(key, activeEffect)
 }
 
 func (e *effects) notify() {
-	for _, ef := range e.subscribers {
-		ef()
-	}
+	e.subscribers.Range(func(_, ef any) bool {
+		ef.(effect)()
+		return true
+	})
 }
