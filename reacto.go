@@ -31,11 +31,11 @@ func (r *ValueRef[T]) Set(value T) {
 	r.effects.notify()
 }
 
-var watchMu sync.Mutex
+var mu sync.Mutex
 
 func Watch(e effect) {
-	watchMu.Lock()
-	defer watchMu.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
 	activeEffect = e
 	activeEffect()
