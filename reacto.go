@@ -9,6 +9,8 @@ type effect func()
 
 var activeEffect effect
 
+// ---------------------------------------------------------------------------- //
+
 type ValueRef[T any] struct {
 	effects *effects
 	value   T
@@ -31,6 +33,8 @@ func (r *ValueRef[T]) Set(value T) {
 	r.effects.notify()
 }
 
+// ---------------------------------------------------------------------------- //
+
 var mu sync.Mutex
 
 func Watch(e effect) {
@@ -42,22 +46,28 @@ func Watch(e effect) {
 	activeEffect = nil
 }
 
+// ---------------------------------------------------------------------------- //
+// Вычисляемая переменная. При создании принимает функцию, которая вычисляет значение.
+
 type ComputedRef[T any] struct {
-	effects *effects
+	//effects *effects
 	compute func() T
 }
 
 func Computed[T any](compute func() T) *ComputedRef[T] {
 	return &ComputedRef[T]{
-		effects: newEffects(),
+		//effects: newEffects(),
 		compute: compute,
 	}
 }
 
 func (c *ComputedRef[T]) Value() T {
-	c.effects.add(activeEffect)
+	//c.effects.add(activeEffect)
 	return c.compute()
 }
+
+// ---------------------------------------------------------------------------- //
+// Набор эффектов для выполнения и добавления.
 
 type effects struct {
 	subscribers sync.Map
