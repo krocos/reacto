@@ -14,7 +14,7 @@ func TestReacto(t *testing.T) {
 		return price.Value() * quantity.Value()
 	})
 
-	reacto.Watch(func() {
+	w := reacto.Watch(func() {
 		t.Log("revenue:", revenue.Value())
 	})
 
@@ -25,7 +25,7 @@ func TestReacto(t *testing.T) {
 		t.Fatal("unexpected result")
 	}
 
-	reacto.Wait()
+	w.Wait()
 }
 
 func TestCorrectReactions(t *testing.T) {
@@ -41,12 +41,12 @@ func TestCorrectReactions(t *testing.T) {
 		return a.Value() + c.Value()
 	})
 
-	reacto.Watch(func() {
+	w1 := reacto.Watch(func() {
 		v := sumAB.Value()
 		t.Log("a + b:", v)
 	})
 
-	reacto.Watch(func() {
+	w2 := reacto.Watch(func() {
 		v := sumAC.Value()
 		t.Log("a + c:", v)
 	})
@@ -66,7 +66,7 @@ func TestCorrectReactions(t *testing.T) {
 		t.Error("unexpected result")
 	}
 
-	reacto.Wait()
+	reacto.WaitAll(w1, w2)
 }
 
 type User struct {
@@ -103,23 +103,25 @@ func TestReal(t *testing.T) {
 		return s.User.Value().Name + s.Card.Value().Number.Value()
 	})
 
-	reacto.Watch(func() {
-		t.Log(s.Card.Value())
-	})
+	w := reacto.NewWatchGroup()
 
-	reacto.Watch(func() {
+	w.Add(reacto.Watch(func() {
+		t.Log(s.Card.Value())
+	}))
+
+	w.Add(reacto.Watch(func() {
 		t.Log(s.User.Value())
-	})
+	}))
 
 	card := s.Card.Value()
 
-	reacto.Watch(func() {
+	w.Add(reacto.Watch(func() {
 		t.Log(card.Number.Value())
-	})
+	}))
 
-	reacto.Watch(func() {
+	w.Add(reacto.Watch(func() {
 		t.Log(s.CardTitle.Value())
-	})
+	}))
 
 	t.Log("-------------")
 
@@ -130,7 +132,23 @@ func TestReal(t *testing.T) {
 
 	card.Number.Set("0999009990")
 
-	reacto.Wait()
+	w.Wait()
+}
+
+func TestWatchFor(t *testing.T) {
+	v1 := reacto.Ref(1)
+	v2 := reacto.Ref(2)
+	v3 := reacto.Ref(3)
+
+	w1 := reacto.Watch(func() {
+		t.Log("v1+v2:", v1.Value()+v2.Value())
+	})
+
+	w2 := reacto.Watch(func() {
+		t.Log("v1+v3:", v1.Value()+v3.Value())
+	})
+
+	reacto.WaitAll(w1, w2)
 }
 
 //func TestPanic(t *testing.T) {

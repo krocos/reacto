@@ -6,15 +6,22 @@ import (
 	"github.com/jtolio/gls"
 )
 
-// ========== Типы ==========
-
 type effect func()
 
 type EffectHandle struct {
 	fn effect
+	wg *sync.WaitGroup
 }
 
-// ========== Ref ==========
+type WatchHandle struct {
+	wg *sync.WaitGroup
+}
+
+func (w *WatchHandle) Wait() {
+	if w != nil && w.wg != nil {
+		w.wg.Wait()
+	}
+}
 
 type ValueRef[T any] struct {
 	mu      sync.RWMutex
@@ -22,6 +29,7 @@ type ValueRef[T any] struct {
 	effects *effects
 }
 
+// Ref creates new reference for a value.
 func Ref[T any](value T) *ValueRef[T] {
 	return &ValueRef[T]{
 		value:   value,
@@ -29,6 +37,7 @@ func Ref[T any](value T) *ValueRef[T] {
 	}
 }
 
+// Value returns current value of ValueRef.
 func (r *ValueRef[T]) Value() T {
 	if h := getActiveEffect(); h != nil {
 		r.effects.add(h)
@@ -39,6 +48,7 @@ func (r *ValueRef[T]) Value() T {
 	return r.value
 }
 
+// Set sets new value for ValueRef and call all effects.
 func (r *ValueRef[T]) Set(value T) {
 	r.mu.Lock()
 	r.value = value
@@ -46,12 +56,12 @@ func (r *ValueRef[T]) Set(value T) {
 	r.effects.notify()
 }
 
-// ========== Computed ==========
-
 type ComputedRef[T any] struct {
 	compute func() T
 }
 
+// Computed creates new ComputedRef that computes everytime on Value method
+// call.
 func Computed[T any](compute func() T) *ComputedRef[T] {
 	return &ComputedRef[T]{compute: compute}
 }
@@ -59,8 +69,6 @@ func Computed[T any](compute func() T) *ComputedRef[T] {
 func (c *ComputedRef[T]) Value() T {
 	return c.compute()
 }
-
-// ========== Эффекты ==========
 
 type effects struct {
 	mu          sync.Mutex
@@ -84,47 +92,89 @@ func (e *effects) notify() {
 	defer e.mu.Unlock()
 
 	for handle := range e.subscribers {
-		wg.Add(1)
-		h := handle // захват переменной
+		if handle.wg != nil {
+			handle.wg.Add(1)
+		}
+		h := handle
 		gls.Go(func() {
-			defer wg.Done()
+			defer func() {
+				if h.wg != nil {
+					h.wg.Done()
+				}
+			}()
 			h.fn()
 		})
 	}
 }
 
-// ========== Управление эффектами ==========
-
 var glsManager = gls.NewContextManager()
 
-const effectName = "reacto-active-effect"
+const effectKey = "reacto-active-effect"
 
-func withEffect(fn effect, run func()) {
-	handle := &EffectHandle{fn: fn}
+func withEffectHandle(fn effect, wg *sync.WaitGroup, run func()) {
+	handle := &EffectHandle{
+		fn: fn,
+		wg: wg,
+	}
 	glsManager.SetValues(gls.Values{
-		effectName: handle,
+		effectKey: handle,
 	}, run)
 }
 
 func getActiveEffect() *EffectHandle {
-	val, ok := glsManager.GetValue(effectName)
+	val, ok := glsManager.GetValue(effectKey)
 	if !ok {
 		return nil
 	}
 	return val.(*EffectHandle)
 }
 
-// ========== Watch API ==========
-
-func Watch(fn func()) {
-	withEffect(fn, fn)
+// Watch watches for all Refs in the callback and call it when any of Refs
+// changed.
+func Watch(fn func()) *WatchHandle {
+	wg := &sync.WaitGroup{}
+	withEffectHandle(fn, wg, fn)
+	return &WatchHandle{wg: wg}
 }
 
-// ========== Синхронизация ==========
+// WaitAll waits all handles to complete.
+func WaitAll(handles ...*WatchHandle) {
+	var wg sync.WaitGroup
 
-var wg sync.WaitGroup
+	for _, h := range handles {
+		if h != nil && h.wg != nil {
+			wg.Add(1)
+			go func(hw *sync.WaitGroup) {
+				defer wg.Done()
+				hw.Wait()
+			}(h.wg)
+		}
+	}
 
-// Wait блокирует до завершения всех активных эффектов
-func Wait() {
 	wg.Wait()
+}
+
+type WatchGroup struct {
+	wg sync.WaitGroup
+}
+
+// NewWatchGroup creates new group of effects to wait to complete.
+func NewWatchGroup() *WatchGroup {
+	return &WatchGroup{}
+}
+
+// Add add another one WatchHandle to the group.
+func (g *WatchGroup) Add(h *WatchHandle) {
+	if h != nil && h.wg != nil {
+		g.wg.Add(1)
+		go func(hw *sync.WaitGroup) {
+			defer g.wg.Done()
+			hw.Wait()
+		}(h.wg)
+	}
+}
+
+// Wait waits for all WatchHandle to complete.
+func (g *WatchGroup) Wait() {
+	g.wg.Wait()
 }
