@@ -14,7 +14,7 @@ func TestReacto(t *testing.T) {
 		return price.Value() * quantity.Value()
 	})
 
-	reacto.Watch("token", func() {
+	reacto.Watch(func() {
 		t.Log("revenue:", revenue.Value())
 	})
 
@@ -39,12 +39,12 @@ func TestCorrectReactions(t *testing.T) {
 		return a.Value() + c.Value()
 	})
 
-	reacto.Watch("here we watch for something", func() {
+	reacto.Watch(func() {
 		v := sumAB.Value()
 		t.Log("a + b:", v)
 	})
 
-	reacto.Watch("here we log something", func() {
+	reacto.Watch(func() {
 		v := sumAC.Value()
 		t.Log("a + c:", v)
 	})
@@ -99,22 +99,22 @@ func TestReal(t *testing.T) {
 		return s.User.Value().Name + s.Card.Value().Number.Value()
 	})
 
-	reacto.Watch("card data changed", func() {
-		t.Log("Card changed", s.Card.Value())
+	reacto.Watch(func() {
+		t.Log(s.Card.Value())
 	})
 
-	reacto.Watch("user data changed", func() {
-		t.Log("New user data", s.User.Value())
+	reacto.Watch(func() {
+		t.Log(s.User.Value())
 	})
 
 	card := s.Card.Value()
 
-	reacto.Watch("card number changed", func() {
-		t.Log("Card num changed", card.Number.Value())
+	reacto.Watch(func() {
+		t.Log(card.Number.Value())
 	})
 
-	reacto.Watch("CARD TITLE CHANGED", func() {
-		t.Log("CARD TITLE CHANGED", s.CardTitle.Value())
+	reacto.Watch(func() {
+		t.Log(s.CardTitle.Value())
 	})
 
 	t.Log("-------------")
@@ -135,7 +135,7 @@ func TestPanic(t *testing.T) {
 	}()
 
 	a := reacto.Ref(1)
-	reacto.Watch("a", func() {
+	reacto.Watch(func() {
 		a.Set(3)
 	})
 }
