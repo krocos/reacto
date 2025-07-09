@@ -140,6 +140,14 @@ func TestWatchFor(t *testing.T) {
 	v2 := reacto.Ref(2)
 	v3 := reacto.Ref(3)
 
+	c1 := reacto.Computed(func() int {
+		return v1.Value() + v2.Value()
+	})
+
+	c2 := reacto.Computed(func() int {
+		return v1.Value() + v3.Value()
+	})
+
 	w1 := reacto.Watch(func() {
 		t.Log("v1+v2:", v1.Value()+v2.Value())
 	})
@@ -148,21 +156,23 @@ func TestWatchFor(t *testing.T) {
 		t.Log("v1+v3:", v1.Value()+v3.Value())
 	})
 
+	if c1.Value() != 3 {
+		t.Error("unexpected c1 value")
+	}
+
+	if c2.Value() != 4 {
+		t.Error("unexpected c2 value")
+	}
+
+	v1.Set(2)
+
+	if c1.Value() != 4 {
+		t.Error("unexpected c1 value")
+	}
+
+	if c2.Value() != 5 {
+		t.Error("unexpected c2 value")
+	}
+
 	reacto.WaitAll(w1, w2)
 }
-
-//func TestPanic(t *testing.T) {
-//	defer func() {
-//		if r := recover(); r == nil {
-//			t.Fatal("expected panic")
-//		}
-//	}()
-//
-//	a := reacto.Ref(1)
-//	reacto.Watch(func() {
-//		a.Set(3)
-//	})
-//
-//	time.Sleep(time.Second)
-//	reacto.Wait()
-//}
