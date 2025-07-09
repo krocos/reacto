@@ -1,10 +1,9 @@
 package reacto
 
 import (
-	"bytes"
-	"runtime"
-	"strconv"
 	"sync"
+
+	"github.com/jtolio/gls"
 )
 
 // ========== Типы ==========
@@ -76,8 +75,8 @@ func newEffects() *effects {
 
 func (e *effects) add(handle *EffectHandle) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.subscribers[handle] = struct{}{}
-	e.mu.Unlock()
 }
 
 func (e *effects) notify() {
@@ -85,49 +84,47 @@ func (e *effects) notify() {
 	defer e.mu.Unlock()
 
 	for handle := range e.subscribers {
-		go handle.fn()
+		wg.Add(1)
+		h := handle // захват переменной
+		gls.Go(func() {
+			defer wg.Done()
+			h.fn()
+		})
 	}
 }
 
 // ========== Управление эффектами ==========
 
-var activeEffectStorage sync.Map // map[goroutine-id]*EffectHandle
+var glsManager = gls.NewContextManager()
+
+const effectName = "reacto-active-effect"
 
 func withEffect(fn effect, run func()) {
 	handle := &EffectHandle{fn: fn}
-	setActiveEffect(handle)
-	run()
-	clearActiveEffect()
-}
-
-func setActiveEffect(h *EffectHandle) {
-	activeEffectStorage.Store(getGID(), h)
+	glsManager.SetValues(gls.Values{
+		effectName: handle,
+	}, run)
 }
 
 func getActiveEffect() *EffectHandle {
-	if val, ok := activeEffectStorage.Load(getGID()); ok {
-		return val.(*EffectHandle)
+	val, ok := glsManager.GetValue(effectName)
+	if !ok {
+		return nil
 	}
-	return nil
-}
-
-func clearActiveEffect() {
-	activeEffectStorage.Delete(getGID())
+	return val.(*EffectHandle)
 }
 
 // ========== Watch API ==========
 
-func Watch(fn effect) {
+func Watch(fn func()) {
 	withEffect(fn, fn)
 }
 
-// ========== Получение goroutine ID (неофициально!) ==========
+// ========== Синхронизация ==========
 
-func getGID() uint64 {
-	b := make([]byte, 64)
-	b = b[:runtime.Stack(b, false)]
-	b = bytes.TrimPrefix(b, []byte("goroutine "))
-	i := bytes.IndexByte(b, ' ')
-	id, _ := strconv.ParseUint(string(b[:i]), 10, 64)
-	return id
+var wg sync.WaitGroup
+
+// Wait блокирует до завершения всех активных эффектов
+func Wait() {
+	wg.Wait()
 }

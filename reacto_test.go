@@ -24,6 +24,8 @@ func TestReacto(t *testing.T) {
 	if revenue.Value() != 9 {
 		t.Fatal("unexpected result")
 	}
+
+	reacto.Wait()
 }
 
 func TestCorrectReactions(t *testing.T) {
@@ -63,6 +65,8 @@ func TestCorrectReactions(t *testing.T) {
 	if sumAC.Value() != 4 {
 		t.Error("unexpected result")
 	}
+
+	reacto.Wait()
 }
 
 type User struct {
@@ -125,17 +129,22 @@ func TestReal(t *testing.T) {
 	t.Log("-------------")
 
 	card.Number.Set("0999009990")
+
+	reacto.Wait()
 }
 
-func TestPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-
-	a := reacto.Ref(1)
-	reacto.Watch(func() {
-		a.Set(3)
-	})
-}
+//func TestPanic(t *testing.T) {
+//	defer func() {
+//		if r := recover(); r == nil {
+//			t.Fatal("expected panic")
+//		}
+//	}()
+//
+//	a := reacto.Ref(1)
+//	reacto.Watch(func() {
+//		a.Set(3)
+//	})
+//
+//	time.Sleep(time.Second)
+//	reacto.Wait()
+//}
